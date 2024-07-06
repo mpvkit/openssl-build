@@ -44,24 +44,13 @@ jobs:
         cp -f ./docs/Package.template.swift ./Package.swift
         LIBSSL_URL="https://github.com/mpvkit/openssl-build/releases/download/${{ github.event.inputs.version }}/Libssl.xcframework.zip"
         LIBSSL_CHECKSUM=$(cat ./dist/release/Libssl.xcframework.checksum.txt)
-        sed -i "s#\\\(Libssl_url)#${LIBSSL_URL}#g" ./Package.swift
-        sed -i "s#\\\(Libssl_checksum)#${LIBSSL_CHECKSUM}#g" ./Package.swift
+        sed -i '' "s#\\\(Libssl_url)#${LIBSSL_URL}#g" ./Package.swift
+        sed -i '' "s#\\\(Libssl_checksum)#${LIBSSL_CHECKSUM}#g" ./Package.swift
 
         LIBCRYPTO_URL="https://github.com/mpvkit/openssl-build/releases/download/${{ github.event.inputs.version }}/Libcrypto.xcframework.zip"
         LIBCRYPTO_CHECKSUM=$(cat ./dist/release/Libcrypto.xcframework.checksum.txt)
-        sed -i "s#\\\(Libcrypto_url)#${LIBCRYPTO_URL}#g" ./Package.swift
-        sed -i "s#\\\(Libcrypto_checksum)#${LIBCRYPTO_CHECKSUM}#g" ./Package.swift
-
-        
-    - name: Push and Tag
-      run: |
-        git config user.name github-actions
-        git config user.email github-actions@github.com
-        git add Package.swift
-        git commit -m "Release ${{ github.event.inputs.version }}"
-        git push
-        git tag ${{ github.event.inputs.version }}
-        git push origin ${{ github.event.inputs.version }}
+        sed -i '' "s#\\\(Libcrypto_url)#${LIBCRYPTO_URL}#g" ./Package.swift
+        sed -i '' "s#\\\(Libcrypto_checksum)#${LIBCRYPTO_CHECKSUM}#g" ./Package.swift
 
     - name: Push Package.swift
       uses: EndBug/add-and-commit@v9
