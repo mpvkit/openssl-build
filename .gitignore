@@ -111,7 +111,10 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# custom
 tmp/
 temp/
 dist/
+*.log
 *.xcframework
