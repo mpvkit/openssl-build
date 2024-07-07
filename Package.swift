@@ -8,10 +8,16 @@ let package = Package(
         .library(
             name: "openssl",
             type: .static,
-            targets: ["Libssl", "Libcrypto"]
+            targets: ["openssl"]
         ),
     ],
     targets: [
+        .target(
+            name: "openssl",
+            dependencies: [
+                "Libssl", "Libcrypto"
+            ]
+        ),
         .binaryTarget(
             name: "Libssl",
             url: "https://github.com/mpvkit/openssl-build/releases/download/3.2.0/Libssl.xcframework.zip",

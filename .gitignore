@@ -114,4 +114,4 @@ Temporary Items
 tmp/
 temp/
 dist/
-Sources/
+*.xcframework
