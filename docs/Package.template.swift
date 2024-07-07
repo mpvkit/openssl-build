@@ -5,14 +5,14 @@ import PackageDescription
 let package = Package(
     name: "openssl",
     products: [
-        .library(name: "Libssl", targets: ["Libssl"]),
-        .library(name: "Libcrypto", targets: ["Libcrypto"])
+        .library(name: "openssl", targets: ["openssl"]),
     ],
     targets: [
-        .executableTarget(
-            name: "build",
-            path: "scripts",
-            exclude:["patch"]
+        .target(
+            name: "openssl",
+            dependencies: [
+                "Libssl", "Libcrypto"
+            ]
         ),
         .binaryTarget(
             name: "Libssl",

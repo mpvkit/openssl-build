@@ -13,5 +13,5 @@ https://github.com/mpvkit/openssl-build.git
 ## How to build
 
 ```bash
-swift run build
+swift run --package-path scripts
 ```
