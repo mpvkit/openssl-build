@@ -5,7 +5,11 @@ import PackageDescription
 let package = Package(
     name: "openssl",
     products: [
-        .library(name: "openssl", targets: ["openssl"]),
+        .library(
+            name: "openssl",
+            type: .static,
+            targets: ["openssl"]
+        ),
     ],
     targets: [
         .target(
