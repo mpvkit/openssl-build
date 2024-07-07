@@ -15,48 +15,39 @@ jobs:
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@v4
-    
+
+    - name: Install dependencies
+      run: |
+        brew install autoconf
+        brew install automake
+        brew install libtool
+
     - name: Build
       run: |
-        swift run build
-
-        mkdir -p ./dist/release/openssl
-        zip -qr ./dist/release/Libcrypto.xcframework.zip ./Sources/Libcrypto.xcframework
-        swift package compute-checksum ./dist/release/Libcrypto.xcframework.zip > ./dist/release/Libcrypto.xcframework.checksum.txt
-        zip -qr ./dist/release/Libssl.xcframework.zip ./Sources/Libssl.xcframework
-        swift package compute-checksum ./dist/release/Libssl.xcframework.zip > ./dist/release/Libssl.xcframework.checksum.txt
-
-        cp -rf ./dist/openssl/ios/thin/arm64/include ./dist/release/openssl/
-        cp -rf ./dist/openssl/ios/thin/arm64/lib/pkgconfig ./dist/release/openssl/pkgconfig-example
-        find ./dist/openssl -name *.framework | xargs rm -rf
-        find ./dist/openssl -name scratch | xargs rm -rf
-        find ./dist/openssl -name share | xargs rm -rf
-        find ./dist/openssl -name include | xargs rm -rf
-        find ./dist/openssl -name ssl | xargs rm -rf
-        find ./dist/openssl -type f -not -name "*.a" | xargs rm -rf
-        find ./dist/openssl -type d -empty | xargs rm -rf
-        cp -rf ./dist/openssl ./dist/release/openssl/lib
-        cd ./dist/release && zip -qr openssl-${{ github.event.inputs.version }}-all.zip openssl/*
+        swift run --package-path scripts
         
     - name: Update Package.swift
       run: |
         rm -f ./Package.swift
         cp -f ./docs/Package.template.swift ./Package.swift
-        LIBSSL_URL="https://github.com/mpvkit/openssl-build/releases/download/${{ github.event.inputs.version }}/Libssl.xcframework.zip"
-        LIBSSL_CHECKSUM=$(cat ./dist/release/Libssl.xcframework.checksum.txt)
-        sed -i '' "s#\\\(Libssl_url)#${LIBSSL_URL}#g" ./Package.swift
-        sed -i '' "s#\\\(Libssl_checksum)#${LIBSSL_CHECKSUM}#g" ./Package.swift
+        Libssl_url="https://github.com/mpvkit/openssl-build/releases/download/${{ github.event.inputs.version }}/Libssl.xcframework.zip"
+        Libssl_checksum=$(cat ./dist/release/Libssl.xcframework.checksum.txt)
+        sed -i '' "s#\\\(Libssl_url)#${Libssl_url}#g" ./Package.swift
+        sed -i '' "s#\\\(Libssl_checksum)#${Libssl_checksum}#g" ./Package.swift
 
-        LIBCRYPTO_URL="https://github.com/mpvkit/openssl-build/releases/download/${{ github.event.inputs.version }}/Libcrypto.xcframework.zip"
-        LIBCRYPTO_CHECKSUM=$(cat ./dist/release/Libcrypto.xcframework.checksum.txt)
-        sed -i '' "s#\\\(Libcrypto_url)#${LIBCRYPTO_URL}#g" ./Package.swift
-        sed -i '' "s#\\\(Libcrypto_checksum)#${LIBCRYPTO_CHECKSUM}#g" ./Package.swift
+        Libcrypto_url="https://github.com/mpvkit/openssl-build/releases/download/${{ github.event.inputs.version }}/Libcrypto.xcframework.zip"
+        Libcrypto_checksum=$(cat ./dist/release/Libcrypto.xcframework.checksum.txt)
+        sed -i '' "s#\\\(Libcrypto_url)#${Libcrypto_url}#g" ./Package.swift
+        sed -i '' "s#\\\(Libcrypto_checksum)#${Libcrypto_checksum}#g" ./Package.swift
 
     - name: Push Package.swift
       uses: EndBug/add-and-commit@v9
       with:
         default_author: github_actions
         add: "Package.swift"
+        add: |
+          - Package.swift
+          - Sources
         message: "chore: release version ${{ github.event.inputs.version }}"
         push: "origin HEAD:${{ github.ref_name }}"
         

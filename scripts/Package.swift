@@ -9,7 +9,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "build",
-            path: "build",
+            path: "XCFrameworkBuild",
             exclude:["patch"]
         )
     ]
