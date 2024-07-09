@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "openssl",
+    platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13)],
     products: [
         .library(name: "openssl", targets: ["Libssl", "Libcrypto"]),
     ],
