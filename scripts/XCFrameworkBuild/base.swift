@@ -12,22 +12,41 @@ enum Build {
         if Utility.shell("which pkg-config") == nil {
             Utility.shell("brew install pkg-config")
         }
+        if Utility.shell("which wget") == nil {
+            Utility.shell("brew install wget")
+        }
         let path = URL.currentDirectory + "dist"
         if !FileManager.default.fileExists(atPath: path.path) {
             try? FileManager.default.createDirectory(at: path, withIntermediateDirectories: false, attributes: nil)
         }
         FileManager.default.changeCurrentDirectoryPath(path.path)
-        BaseBuild.isDebug = arguments.firstIndex(of: "enable-debug") != nil
-        BaseBuild.platforms = arguments.compactMap { argument in
-            if argument.hasPrefix("platform=") {
-                let value = String(argument.suffix(argument.count - "platform=".count))
-                return PlatformType(rawValue: value)
-            } else {
-                return nil
+        for argument in arguments {
+            if argument == "enable-debug" {
+                BaseBuild.isDebug = true
+            } else if argument == "enable-split-platform" {
+                BaseBuild.splitPlatform = true
+            } else if argument.hasPrefix("platforms=") {
+                let values = String(argument.suffix(argument.count - "platforms=".count))
+                var platforms : [PlatformType] = []
+                for val in values.split(separator: ",") {
+                    let platformStr = val.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    switch platformStr {
+                    case "ios":
+                        platforms += [PlatformType.ios, PlatformType.isimulator]
+                    case "tvos":
+                        platforms += [PlatformType.tvos, PlatformType.tvsimulator]
+                    default:
+                        if let other = PlatformType(rawValue: platformStr), !platforms.contains(other) {
+                            platforms += [other]
+                        } else {
+                            throw NSError(domain: "unknown platform: \(val)", code: 1)
+                        }
+                    }
+                }
+                if !platforms.isEmpty {
+                    BaseBuild.platforms = platforms
+                }
             }
-        }
-        if BaseBuild.platforms.isEmpty {
-            BaseBuild.platforms = PlatformType.allCases
         }
     }
 }
@@ -36,19 +55,28 @@ class BaseBuild {
     static let defaultPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
     static var platforms = PlatformType.allCases
     static var isDebug: Bool = false
+    static var splitPlatform: Bool = false
     let library: Library
     let directoryURL: URL
     init(library: Library) {
         self.library = library
         directoryURL = URL.currentDirectory + "\(library.rawValue)-\(library.version)"
 
-        
-        if !FileManager.default.fileExists(atPath: directoryURL.path) {
+        // unzip builded static library
+        if library.url.hasSuffix(".zip") {
+            try? FileManager.default.removeItem(atPath: directoryURL.path)
+            try! FileManager.default.createDirectory(atPath: directoryURL.path, withIntermediateDirectories: true, attributes: nil)
+
+            let outputFileName = "\(library.rawValue).zip"
+            try! Utility.launch(executableName: "wget", arguments: ["-O", outputFileName, library.url], currentDirectoryURL: directoryURL)
+            try! Utility.launch(path: "/usr/bin/unzip", arguments: [outputFileName], currentDirectoryURL: directoryURL)
+            try? FileManager.default.removeItem(at: directoryURL + [outputFileName])
+        } else if !FileManager.default.fileExists(atPath: directoryURL.path) {
             // pull code
             try! Utility.launch(path: "/usr/bin/git", arguments: ["-c", "advice.detachedHead=false", "clone", "--depth", "1", "--branch", library.version, library.url, directoryURL.path])
 
             // apply patch
-            let patch = URL.currentDirectory + "../Plugins/BuildFFmpeg/patch/\(library.rawValue)"
+            let patch = URL.currentDirectory + "../scripts/patch/\(library.rawValue)"
             if FileManager.default.fileExists(atPath: patch.path) {
                 _ = try? Utility.launch(path: "/usr/bin/git", arguments: ["checkout", "."], currentDirectoryURL: directoryURL)
                 let fileNames = try! FileManager.default.contentsOfDirectory(atPath: patch.path).sorted()
@@ -204,11 +232,7 @@ class BaseBuild {
         for library in librarys {
             let path = URL.currentDirectory + [library.rawValue, platform.rawValue, "thin", arch.rawValue]
             if FileManager.default.fileExists(atPath: path.path) {
-                // if library == .libsmbclient {
-                //     cFlags.append("-I\(path.path)/include/samba-4.0")
-                // } else {
-                    cFlags.append("-I\(path.path)/include")
-                // }
+                cFlags.append("-I\(path.path)/include")
             }
         }
         return cFlags
@@ -226,13 +250,6 @@ class BaseBuild {
                 }
                 ldFlags.append("-L\(path.path)/lib")
                 ldFlags.append("-l\(libname)")
-                // if library == .nettle {
-                //     ldFlags.append("-lhogweed")
-                // } else if library == .gnutls {
-                //     ldFlags.append(contentsOf: ["-framework", "Security", "-framework", "CoreFoundation"])
-                // } else if library == .libsmbclient {
-                //     ldFlags.append(contentsOf: ["-lresolv", "-lpthread", "-lz", "-liconv"])
-                // }
             }
         }
         return ldFlags
@@ -252,6 +269,9 @@ class BaseBuild {
     }
 
     func createXCFramework() throws {
+        // clean all old xcframework
+        try? Utility.removeFiles(extensions: [".xcframework"], currentDirectoryURL: URL.currentDirectory + ["../Sources"])
+
         var frameworks: [String] = []
         let libNames = try self.frameworks()
         for libName in libNames {
@@ -262,21 +282,54 @@ class BaseBuild {
             }
         }
         for framework in frameworks {
-            var arguments = ["-create-xcframework"]
+            var frameworkGenerated = [PlatformType: String]()
             for platform in BaseBuild.platforms {
                 if let frameworkPath = try createFramework(framework: framework, platform: platform) {
-                    arguments.append("-framework")
-                    arguments.append(frameworkPath)
+                    frameworkGenerated[platform] = frameworkPath
                 }
             }
-            arguments.append("-output")
-            let XCFrameworkFile = URL.currentDirectory + ["../Sources", framework + ".xcframework"]
-            arguments.append(XCFrameworkFile.path)
-            if FileManager.default.fileExists(atPath: XCFrameworkFile.path) {
-                try? FileManager.default.removeItem(at: XCFrameworkFile)
+            try buildXCFramework(name: framework, paths: Array(frameworkGenerated.values))
+
+            // Generate xcframework for different platforms
+            if BaseBuild.splitPlatform {
+                if let iosFrameworkPath = frameworkGenerated[.ios] {
+                    var frameworkPaths: [String] = [iosFrameworkPath]
+                    frameworkGenerated.removeValue(forKey: .ios)
+                    if let isimulatorFrameworkPath = frameworkGenerated[.isimulator] {
+                        frameworkPaths.append(isimulatorFrameworkPath)
+                        frameworkGenerated.removeValue(forKey: .isimulator)
+                    }
+                    try buildXCFramework(name: "\(framework)-ios", paths: frameworkPaths)
+                }
+                if let tvosFrameworkPath = frameworkGenerated[.tvos] {
+                    var frameworkPaths: [String] = [tvosFrameworkPath]
+                    frameworkGenerated.removeValue(forKey: .tvos)
+                    if let tvsimulatorFrameworkPath = frameworkGenerated[.tvsimulator] {
+                        frameworkPaths.append(tvsimulatorFrameworkPath)
+                        frameworkGenerated.removeValue(forKey: .tvsimulator)
+                    }
+                    try buildXCFramework(name: "\(framework)-tvos", paths: frameworkPaths)
+                }
+                for (platform, frameworkPath) in frameworkGenerated {
+                    try buildXCFramework(name: "\(framework)-\(platform.rawValue)", paths: [frameworkPath])
+                }
             }
-            try Utility.launch(path: "/usr/bin/xcodebuild", arguments: arguments)
         }
+    }
+
+    private func buildXCFramework(name: String, paths: [String]) throws {
+        var arguments = ["-create-xcframework"]
+        for frameworkPath in paths {
+            arguments.append("-framework")
+            arguments.append(frameworkPath)
+        }
+        arguments.append("-output")
+        let XCFrameworkFile = URL.currentDirectory + ["../Sources", name + ".xcframework"]
+        arguments.append(XCFrameworkFile.path)
+        if FileManager.default.fileExists(atPath: XCFrameworkFile.path) {
+            try? FileManager.default.removeItem(at: XCFrameworkFile)
+        }
+        try Utility.launch(path: "/usr/bin/xcodebuild", arguments: arguments)
     }
 
     func createFramework(framework: String, platform: PlatformType) throws -> String? {
@@ -445,6 +498,9 @@ class BaseBuild {
         for platform in BaseBuild.platforms {
             for arch in architectures(platform) {
                  let thinLibPath = thinDir(platform: platform, arch: arch) + ["lib"]
+                 if !FileManager.default.fileExists(atPath: thinLibPath.path) {
+                     continue
+                 }
                  let staticLibraries = try FileManager.default.contentsOfDirectory(atPath: thinLibPath.path).filter { $0.hasSuffix(".a") }
 
                  let releaseThinLibPath = releaseDirPath + [library.rawValue, "lib", platform.rawValue, "thin", arch.rawValue, "lib"]
@@ -458,22 +514,33 @@ class BaseBuild {
         }
 
         // copy includes
-        let includePath = thinDir(platform: PlatformType.ios, arch: ArchType.arm64) + ["include"]
+        let firstPlatform = getFirstSuccessPlatform()
+        let firstArch = architectures(firstPlatform).first!
+        let includePath = thinDir(platform: firstPlatform, arch: firstArch) + ["include"]
         let destIncludePath = releaseDirPath + [library.rawValue, "include"]
-        Utility.shell("cp -rf \(includePath.path) \(destIncludePath.path)")
+        try FileManager.default.copyItem(at: includePath, to: destIncludePath)
 
 
         // copy pkg-config files
-        let iosLibPath = thinDir(platform: PlatformType.ios, arch: ArchType.arm64) + ["lib"]
+        let iosLibPath = thinDir(platform: firstPlatform, arch: firstArch) + ["lib"]
         let pkgconfigPath = iosLibPath + ["pkgconfig"]
         let destPkgConfigPath = releaseDirPath + [library.rawValue, "pkgconfig-example"]
-        Utility.shell("cp -rf \(pkgconfigPath.path) \(destPkgConfigPath.path)")
+        try FileManager.default.copyItem(at: pkgconfigPath, to: destPkgConfigPath)
+        let pkgconfigFiles = Utility.listAllFiles(in: destPkgConfigPath)
+        for file in pkgconfigFiles {
+            if let data = FileManager.default.contents(atPath: file.path), var str = String(data: data, encoding: .utf8) {
+                str = str.replacingOccurrences(of: URL.currentDirectory.path, with: "/path/to/dist")
+                try! str.write(toFile: file.path, atomically: true, encoding: .utf8)
+            }
+        }
 
-        // zip build artifacts
-        let sourceLib = library.rawValue
-        let destZipLibPath = releaseDirPath + [library.rawValue + "-all.zip"]
-        try? FileManager.default.removeItem(at: destZipLibPath)
-        Utility.shell("zip -qr \(destZipLibPath.path) \(sourceLib)", currentDirectoryURL: releaseDirPath)
+        // zip build artifacts when there are frameworks to generate
+        if try self.frameworks().count > 0 {
+            let sourceLib = releaseDirPath + [library.rawValue]
+            let destZipLibPath = releaseDirPath + [library.rawValue + "-all.zip"]
+            try? FileManager.default.removeItem(at: destZipLibPath)
+            try Utility.launch(path: "/usr/bin/zip", arguments: ["-qr", destZipLibPath.path, "./"], currentDirectoryURL: sourceLib)
+        }
 
         // zip xcframeworks
         var frameworks: [String] = []
@@ -485,18 +552,80 @@ class BaseBuild {
                 frameworks.append(libName)
             }
         }
+        try Utility.removeFiles(extensions: [".zip", ".checksum.txt"], currentDirectoryURL: releaseDirPath)
         for framework in frameworks {
             let XCFrameworkFile =  framework + ".xcframework"
             let zipFile = releaseDirPath + [framework + ".xcframework.zip"]
             let checksumFile = releaseDirPath + [framework + ".xcframework.checksum.txt"]
-            try? FileManager.default.removeItem(at: zipFile)
-            try? FileManager.default.removeItem(at: checksumFile)
-            Utility.shell("zip -qr \(zipFile.path) \(XCFrameworkFile)", currentDirectoryURL: URL.currentDirectory + ["../Sources"])
+            try Utility.launch(path: "/usr/bin/zip", arguments: ["-qr", zipFile.path, XCFrameworkFile], currentDirectoryURL: URL.currentDirectory + ["../Sources"])
             Utility.shell("swift package compute-checksum \(zipFile.path) > \(checksumFile.path)")
+
+            if BaseBuild.splitPlatform {
+                for platform in BaseBuild.platforms {
+                    let XCFrameworkName =  "\(framework)-\(platform.rawValue)"
+                    let XCFrameworkFile =  XCFrameworkName + ".xcframework"
+                    let XCFrameworkPath = URL.currentDirectory + ["../Sources", "\(framework)-\(platform.rawValue).xcframework"]
+                    if FileManager.default.fileExists(atPath: XCFrameworkPath.path) {
+                        let zipFile = releaseDirPath + [XCFrameworkName + ".xcframework.zip"]
+                        let checksumFile = releaseDirPath + [XCFrameworkName + ".xcframework.checksum.txt"]
+                        try Utility.launch(path: "/usr/bin/zip", arguments: ["-qr", zipFile.path, XCFrameworkFile], currentDirectoryURL: URL.currentDirectory + ["../Sources"])
+                        Utility.shell("swift package compute-checksum \(zipFile.path) > \(checksumFile.path)")
+                    }
+                }
+            }
         }
+    }
+
+    func getFirstSuccessPlatform() -> PlatformType {
+        for platform in BaseBuild.platforms {
+            let firstArch = architectures(platform).first!
+            let thinPath = thinDir(platform: platform, arch: firstArch)
+            if FileManager.default.fileExists(atPath: thinPath.path) {
+                return platform
+            }
+        }
+
+        return BaseBuild.platforms.first!
     }
 }
 
+
+class ZipBaseBuild : BaseBuild {
+
+    override func buildALL() throws {
+        try? FileManager.default.removeItem(at: URL.currentDirectory + library.rawValue)
+        try? FileManager.default.removeItem(at: directoryURL.appendingPathExtension("log"))
+        try? FileManager.default.createDirectory(atPath: (URL.currentDirectory + library.rawValue).path, withIntermediateDirectories: true, attributes: nil)
+        for platform in BaseBuild.platforms {
+            for arch in architectures(platform) {
+                // restore lib
+                let srcThinLibPath = directoryURL + ["lib"] + [platform.rawValue, "thin", arch.rawValue, "lib"]
+                let destThinPath = thinDir(platform: platform, arch: arch)
+                let destThinLibPath = destThinPath + ["lib"]
+                try? FileManager.default.createDirectory(atPath: destThinPath.path, withIntermediateDirectories: true, attributes: nil)
+                try? FileManager.default.copyItem(at: srcThinLibPath, to: destThinLibPath)
+
+                // restore include
+                let srcIncludePath = directoryURL + ["include"]
+                let destIncludePath = thinDir(platform: platform, arch: arch) + ["include"]
+                try? FileManager.default.copyItem(at: srcIncludePath, to: destIncludePath)
+
+                // restore pkgconfig
+                let srcPkgConfigPath = directoryURL + ["pkgconfig-example"]
+                let destPkgConfigPath = thinDir(platform: platform, arch: arch) + ["lib", "pkgconfig"]
+                try? FileManager.default.copyItem(at: srcPkgConfigPath, to: destPkgConfigPath)
+
+                // update pkgconfig prefix
+                Utility.listAllFiles(in: destPkgConfigPath).forEach { file in
+                    if let data = FileManager.default.contents(atPath: file.path), var str = String(data: data, encoding: .utf8) {
+                        str = str.replacingOccurrences(of: "/path/to/dist" , with: URL.currentDirectory.path)
+                        try! str.write(toFile: file.path, atomically: true, encoding: .utf8)
+                    }
+                }
+            }
+        }
+    }
+}
 
 
 enum PlatformType: String, CaseIterable {
@@ -704,6 +833,19 @@ enum ArchType: String, CaseIterable {
         return false
     }
 
+    var executableArchitecture: String? {
+        guard let arch = Bundle.main.executableArchitectures?.first?.intValue else {
+            return nil
+        }
+        // NSBundleExecutableArchitectureARM64
+        if arch == 0x0100_000C {
+            return "arm64"
+        } else if arch == NSBundleExecutableArchitectureX86_64 {
+            return "x86_64"
+        }
+        return nil
+    }
+
     var cpuFamily: String {
         switch self {
         case .arm64, .arm64e:
@@ -739,6 +881,12 @@ enum Utility {
     @discardableResult
     static func launch(path: String, arguments: [String], isOutput: Bool = false, currentDirectoryURL: URL? = nil, environment: [String: String] = [:]) throws -> String {
         try launch(executableURL: URL(fileURLWithPath: path), arguments: arguments, isOutput: isOutput, currentDirectoryURL: currentDirectoryURL, environment: environment)
+    }
+
+    @discardableResult
+    static func launch(executableName: String, arguments: [String], isOutput: Bool = false, currentDirectoryURL: URL? = nil, environment: [String: String] = [:]) throws -> String {
+        let executableURL = Utility.shell("which \(executableName)", isOutput: true)!
+        return try launch(executableURL: URL(fileURLWithPath: executableURL), arguments: arguments, isOutput: isOutput, currentDirectoryURL: currentDirectoryURL, environment: environment)
     }
 
     @discardableResult
@@ -835,6 +983,39 @@ enum Utility {
         #else
         return ""
         #endif
+    }
+
+    @discardableResult
+    static func listAllFiles(in directory: URL) -> [URL] {
+        var allFiles: [URL] = []
+        let enumerator = FileManager.default.enumerator(atPath: directory.path)
+
+        while let file = enumerator?.nextObject() as? String {
+            let filePath = directory + [file]
+            var isDirectory: ObjCBool = false
+
+            if FileManager.default.fileExists(atPath: filePath.path, isDirectory: &isDirectory) {
+                if isDirectory.boolValue {
+                    // 如果是目录，则递归遍历该目录
+                    listAllFiles(in: filePath)
+                } else {
+                    allFiles.append(filePath)
+                }
+            }
+        }
+
+        return allFiles
+    }
+
+    static func removeFiles(extensions: [String], currentDirectoryURL: URL) throws {
+        for ext in extensions {
+            let directoryContents = try FileManager.default.contentsOfDirectory(atPath: currentDirectoryURL.path)
+            for item in directoryContents {
+                if item.hasSuffix(ext) {
+                    try FileManager.default.removeItem(at: currentDirectoryURL.appendingPathComponent(item))
+                }
+            }
+        }
     }
 }
 

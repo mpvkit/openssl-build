@@ -15,3 +15,10 @@ https://github.com/mpvkit/openssl-build.git
 ```bash
 swift run --package-path scripts
 ```
+
+or 
+
+```bash
+# deployment platform: macos,ios,tvos,maccatalyst
+swift run --package-path scripts build platforms=ios,macos
+```

@@ -5,19 +5,9 @@ import PackageDescription
 let package = Package(
     name: "openssl",
     products: [
-        .library(
-            name: "openssl",
-            type: .static,
-            targets: ["openssl"]
-        ),
+        .library(name: "openssl", targets: ["Libssl", "Libcrypto"]),
     ],
     targets: [
-        .target(
-            name: "openssl",
-            dependencies: [
-                "Libssl", "Libcrypto"
-            ]
-        ),
         .binaryTarget(
             name: "Libssl",
             url: "\(Libssl_url)",

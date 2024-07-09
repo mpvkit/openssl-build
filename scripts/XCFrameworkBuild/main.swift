@@ -44,15 +44,4 @@ private class BuildOpenSSL: BaseBuild {
         ]
         return array
     }
-
-    override func buildALL() throws {
-        try super.buildALL()
-
-        // copy headers
-        let includeSourceDirectory = URL.currentDirectory + "../Sources/Libssl.xcframework/ios-arm64/Libssl.framework/Headers/openssl"
-        let includeDestDirectory = URL.currentDirectory + "../Sources/openssl/include"
-        print("Copy openssl headers to path: \(includeDestDirectory.path)")
-        try? FileManager.default.removeItem(at: includeDestDirectory)
-        try? FileManager.default.copyItem(at: includeSourceDirectory, to: includeDestDirectory)
-    }
 }
