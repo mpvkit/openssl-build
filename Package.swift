@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "openssl",
+    platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13)],
     products: [
         .library(name: "openssl", targets: ["Libssl", "Libcrypto"]),
     ],
@@ -11,12 +12,12 @@ let package = Package(
         .binaryTarget(
             name: "Libssl",
             url: "https://github.com/mpvkit/openssl-build/releases/download/3.2.0/Libssl.xcframework.zip",
-            checksum: "0f2d4ca3e8db2836b3dcb3787965e352d3a4f1ab2a4202c645b1cf71ff0ea8e6"
+            checksum: "f8f532a477d079c3d769fdfd837662ab262c168a98398133a9e97e7ac5ea09d2"
         ),
         .binaryTarget(
             name: "Libcrypto",
             url: "https://github.com/mpvkit/openssl-build/releases/download/3.2.0/Libcrypto.xcframework.zip",
-            checksum: "8a5aebb276fbd1b7467100a7d09dc37b35ec8052706cc2e26db941df5147e61d"
+            checksum: "347dadacfb16d1109728fec2a874399edab95bbc65143b535ee030cc4a0c07b2"
         )
     ]
 )
