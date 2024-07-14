@@ -12,7 +12,7 @@ jobs:
   build:
     permissions:
       contents: write
-    runs-on: macos-latest
+    runs-on: macos-14
     steps:
     - uses: actions/checkout@v4
 
@@ -22,23 +22,19 @@ jobs:
         brew install automake
         brew install libtool
 
+    - name: Setup Xcode to support visionOS
+      run: |
+        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+        xcodebuild -showsdks
+
     - name: Build
       run: |
-        make build
-        
+        make build version=${{ github.event.inputs.version }}
+    
     - name: Update Package.swift
       run: |
-        rm -f ./Package.swift
-        cp -f ./docs/Package.template.swift ./Package.swift
-        Libssl_url="https://github.com/mpvkit/openssl-build/releases/download/${{ github.event.inputs.version }}/Libssl.xcframework.zip"
-        Libssl_checksum=$(cat ./dist/release/Libssl.xcframework.checksum.txt)
-        sed -i '' "s#\\\(Libssl_url)#${Libssl_url}#g" ./Package.swift
-        sed -i '' "s#\\\(Libssl_checksum)#${Libssl_checksum}#g" ./Package.swift
-
-        Libcrypto_url="https://github.com/mpvkit/openssl-build/releases/download/${{ github.event.inputs.version }}/Libcrypto.xcframework.zip"
-        Libcrypto_checksum=$(cat ./dist/release/Libcrypto.xcframework.checksum.txt)
-        sed -i '' "s#\\\(Libcrypto_url)#${Libcrypto_url}#g" ./Package.swift
-        sed -i '' "s#\\\(Libcrypto_checksum)#${Libcrypto_checksum}#g" ./Package.swift
+        rm -rf ./Package.swift
+        cp -f ./dist/release/Package.swift ./Package.swift
 
     - name: Push Package.swift
       uses: EndBug/add-and-commit@v9
@@ -46,7 +42,7 @@ jobs:
         default_author: github_actions
         add: |
           - Package.swift
-        message: "chore: release version ${{ github.event.inputs.version }}"
+        message: "chore: bump version to ${{ github.event.inputs.version }}"
         push: "origin HEAD:${{ github.ref_name }}"
         
     - name: Upload binary to GitHub Release
@@ -57,5 +53,5 @@ jobs:
         files: |
           ./dist/release/*.txt
           ./dist/release/*.zip
-        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
+        prerelease: ${{ contains(github.event.inputs.version, 'alpha') || contains(github.event.inputs.version, 'beta') }}
         fail_on_unmatched_files: true

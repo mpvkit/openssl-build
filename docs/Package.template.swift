@@ -6,18 +6,17 @@ let package = Package(
     name: "openssl",
     platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13)],
     products: [
-        .library(name: "openssl", targets: ["Libssl", "Libcrypto"]),
+        .library(name: "openssl", targets: ["_openssl"]),
     ],
     targets: [
-        .binaryTarget(
-            name: "Libssl",
-            url: "\(Libssl_url)",
-            checksum: "\(Libssl_checksum)"
+        // Need a dummy target to embedded correctly.
+        // https://github.com/apple/swift-package-manager/issues/6069
+        .target(
+            name: "_openssl",
+            dependencies: ["Libssl", "Libcrypto"],
+            path: "Sources/_Dummy"
         ),
-        .binaryTarget(
-            name: "Libcrypto",
-            url: "\(Libcrypto_url)",
-            checksum: "\(Libcrypto_checksum)"
-        )
+        //AUTO_GENERATE_TARGETS_BEGIN//
+        //AUTO_GENERATE_TARGETS_END//
     ]
 )

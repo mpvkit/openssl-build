@@ -26,6 +26,25 @@ enum Library: String, CaseIterable {
             return "https://github.com/openssl/openssl"
         }
     }
+
+    // for generate Package.swift
+    var targets : [PackageTarget] {
+        switch self {
+        case .openssl:
+            return  [
+                .target(
+                    name: "Libssl",
+                    url: "https://github.com/mpvkit/openssl-build/releases/download/\(BaseBuild.options.releaseVersion)/Libssl.xcframework.zip",
+                    checksum: "https://github.com/mpvkit/openssl-build/releases/download/\(BaseBuild.options.releaseVersion)/Libssl.xcframework.checksum.txt"
+                ),
+                .target(
+                    name: "Libcrypto",
+                    url: "https://github.com/mpvkit/openssl-build/releases/download/\(BaseBuild.options.releaseVersion)/Libcrypto.xcframework.zip",
+                    checksum: "https://github.com/mpvkit/openssl-build/releases/download/\(BaseBuild.options.releaseVersion)/Libcrypto.xcframework.checksum.txt"
+                ),
+            ]
+        }
+    }
 }
 
 
