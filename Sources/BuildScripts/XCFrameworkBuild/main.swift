@@ -7,7 +7,7 @@ do {
     try BuildOpenSSL().buildALL()
 } catch {
     print(error.localizedDescription)
-    exit(0)
+    exit(1)
 }
 
 
