@@ -1,6 +1,6 @@
 # openssl-build
 
-[![GitHub Release](https://img.shields.io/github/v/release/mpvkit/openssl-build?display_name=release)](https://github.com/openssl/openssl)
+[![GitHub Release](https://img.shields.io/github/v/release/mpvkit/openssl-build)](https://github.com/mpvkit/openssl-build/releases)
 [![license](https://img.shields.io/github/license/mpvkit/openssl-build)](https://github.com/mpvkit/openssl-build/main/LICENSE)
 
 build scripts for [openssl](https://github.com/openssl/openssl)
