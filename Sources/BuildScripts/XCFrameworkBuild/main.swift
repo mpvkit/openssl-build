@@ -16,7 +16,7 @@ enum Library: String, CaseIterable {
     var version: String {
         switch self {
         case .openssl:
-            return "openssl-3.3.1"
+            return "openssl-3.3.2"
         }
     }
 
