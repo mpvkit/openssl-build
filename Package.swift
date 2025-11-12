@@ -21,12 +21,12 @@ let package = Package(
         .binaryTarget(
             name: "Libssl",
             url: "https://github.com/mpvkit/openssl-build/releases/download/3.3.2-xcode/Libssl.xcframework.zip",
-            checksum: "177cdd6abe6d84d2cd35ee1dd6669a2eb4ccd503a5b577c5ea58c66a4f3abc15"
+            checksum: "91e51c9d6bfc5c0eabe18ab8351b673e285f56e16a4924b38f500dfcce345003"
         ),
         .binaryTarget(
             name: "Libcrypto",
             url: "https://github.com/mpvkit/openssl-build/releases/download/3.3.2-xcode/Libcrypto.xcframework.zip",
-            checksum: "42bf8f25f8556c16633d0279f54eabf75e40e93c03793c3af0c20b928fe29a49"
+            checksum: "f0ecf1ce2006bcdfe2ce5878ac985745d0435bb3fef352109ceb0c2fe942e1e5"
         ),
         //AUTO_GENERATE_TARGETS_END//
     ]
