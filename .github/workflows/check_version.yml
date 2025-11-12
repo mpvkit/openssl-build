@@ -44,6 +44,7 @@ jobs:
               content = file.read()
             oldVersion = re.search(r'(case .openssl[^"]+?)"(.+?)"', content).group(2)
             print("old version:", oldVersion)
+            set_env('OLD_VERSION', oldVersion)
             newVersion = '${{ env.LATEST_VERSION }}'
             print("new version:", newVersion)
             if parse_version(newVersion) > parse_version(oldVersion):
@@ -60,6 +61,9 @@ jobs:
           add-paths: |
             ./Sources/BuildScripts/XCFrameworkBuild/main.swift
           title: "bump version to ${{ env.LATEST_VERSION }}"
-          body: "https://github.com/openssl/openssl/blob/${{ env.LATEST_VERSION }}/CHANGES.md\n"
+          body: |
+            https://github.com/openssl/openssl/blob/${{ env.LATEST_VERSION }}/CHANGES.md
+
+            https://github.com/openssl/openssl/compare/${{ env.OLD_VERSION }}...${{ env.LATEST_VERSION }}
           commit-message: "chore: bump version to ${{ env.LATEST_VERSION }}"
           
