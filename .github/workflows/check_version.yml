@@ -5,6 +5,10 @@ on:
   # schedule:
   #   - cron: '0 0 1 * *' # every month first day
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   check_version:
     uses: mpvkit/BuildShared/.github/workflows/check_version.yml@main
