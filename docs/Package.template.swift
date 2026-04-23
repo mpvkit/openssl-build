@@ -6,7 +6,10 @@ let package = Package(
     name: "openssl",
     platforms: [.macOS(.v11), .iOS(.v14), .tvOS(.v14)],
     products: [
-        .library(name: "openssl", targets: ["_openssl"]),
+        .library(
+            name: "openssl",
+            targets: ["_openssl"]
+        ),
     ],
     targets: [
         // Need a dummy target to embedded correctly.
