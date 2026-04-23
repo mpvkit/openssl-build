@@ -1,8 +1,11 @@
 import Foundation
 import BuildShared
 
+private var releaseVersion = Library.openssl.version
+
 do {
     let options = try BuildRunner.performCommand()
+    releaseVersion = options.releaseVersion
     try BuildOpenSSL(options: options).buildALL()
 } catch {
     print(error.localizedDescription)
@@ -30,7 +33,6 @@ enum Library: String, CaseIterable, BuildLibrary {
     var targets : [PackageTarget] {
         switch self {
         case .openssl:
-            let releaseVersion = BuildRunner.options?.releaseVersion ?? Library.openssl.version
             return  [
                 .target(
                     name: "Libssl",
