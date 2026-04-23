@@ -5,6 +5,8 @@
 
 build scripts for [openssl](https://github.com/openssl/openssl)
 
+> This is a component of the [MPVKit](https://github.com/mpvkit/MPVKit) project.
+
 ## Installation
 
 ### Swift Package Manager

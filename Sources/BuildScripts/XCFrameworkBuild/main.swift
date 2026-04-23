@@ -1,17 +1,16 @@
 import Foundation
+import BuildShared
 
 do {
-    let options = try ArgumentOptions.parse(CommandLine.arguments)
-    try Build.performCommand(options)
-
-    try BuildOpenSSL().buildALL()
+    let options = try BuildRunner.performCommand()
+    try BuildOpenSSL(options: options).buildALL()
 } catch {
     print(error.localizedDescription)
     exit(1)
 }
 
 
-enum Library: String, CaseIterable {
+enum Library: String, CaseIterable, BuildLibrary {
     case openssl
     var version: String {
         switch self {
@@ -31,16 +30,17 @@ enum Library: String, CaseIterable {
     var targets : [PackageTarget] {
         switch self {
         case .openssl:
+            let releaseVersion = BuildRunner.options?.releaseVersion ?? Library.openssl.version
             return  [
                 .target(
                     name: "Libssl",
-                    url: "https://github.com/mpvkit/openssl-build/releases/download/\(BaseBuild.options.releaseVersion)/Libssl.xcframework.zip",
-                    checksum: "https://github.com/mpvkit/openssl-build/releases/download/\(BaseBuild.options.releaseVersion)/Libssl.xcframework.checksum.txt"
+                    url: "https://github.com/mpvkit/openssl-build/releases/download/\(releaseVersion)/Libssl.xcframework.zip",
+                    checksum: "https://github.com/mpvkit/openssl-build/releases/download/\(releaseVersion)/Libssl.xcframework.checksum.txt"
                 ),
                 .target(
                     name: "Libcrypto",
-                    url: "https://github.com/mpvkit/openssl-build/releases/download/\(BaseBuild.options.releaseVersion)/Libcrypto.xcframework.zip",
-                    checksum: "https://github.com/mpvkit/openssl-build/releases/download/\(BaseBuild.options.releaseVersion)/Libcrypto.xcframework.checksum.txt"
+                    url: "https://github.com/mpvkit/openssl-build/releases/download/\(releaseVersion)/Libcrypto.xcframework.zip",
+                    checksum: "https://github.com/mpvkit/openssl-build/releases/download/\(releaseVersion)/Libcrypto.xcframework.checksum.txt"
                 ),
             ]
         }
@@ -49,8 +49,8 @@ enum Library: String, CaseIterable {
 
 
 private class BuildOpenSSL: BaseBuild {
-    init() {
-        super.init(library: .openssl)
+    init(options: ArgumentOptions) {
+        super.init(library: Library.openssl, options: options)
     }
 
     override func frameworks() throws -> [String] {
